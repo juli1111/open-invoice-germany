@@ -11,6 +11,18 @@ const TYPE_TITLE: Record<string, string> = {
   INVOICE: "Rechnung",
   CREDIT_NOTE: "Gutschrift / Storno",
   CORRECTION: "Korrekturrechnung",
+  ANGEBOT: "Angebot",
+  AUFTRAGSBESTAETIGUNG: "Auftragsbestätigung",
+  PROFORMA: "Proforma-Rechnung",
+};
+
+const NUMBER_LABEL: Record<string, string> = {
+  INVOICE: "Rechnungsnummer",
+  CREDIT_NOTE: "Gutschriftnummer",
+  CORRECTION: "Korrekturnummer",
+  ANGEBOT: "Angebotsnummer",
+  AUFTRAGSBESTAETIGUNG: "Auftragsnummer",
+  PROFORMA: "Proforma-Nr.",
 };
 
 function deDate(date: Date | null | undefined): string {
@@ -50,9 +62,9 @@ export function renderInvoicePdf(data: EInvoiceData): Promise<Buffer> {
     doc.fontSize(18).fillColor("#111").text(TYPE_TITLE[data.type] ?? "Rechnung", left, 110, { align: "right" });
     doc.fontSize(10).fillColor("#333");
     const metaTop = 140;
-    doc.text(`Rechnungsnummer: ${data.number}`, 300, metaTop, { align: "right" });
+    doc.text(`${NUMBER_LABEL[data.type] ?? "Nummer"}: ${data.number}`, 300, metaTop, { align: "right" });
     doc.text(`Rechnungsdatum: ${deDate(data.issueDate)}`, { align: "right" });
-    doc.text(`Leistungsdatum: ${deDate(data.deliveryDate)}`, { align: "right" });
+    if (data.deliveryDate) doc.text(`Leistungsdatum: ${deDate(data.deliveryDate)}`, { align: "right" });
     if (data.dueDate) doc.text(`Fällig am: ${deDate(data.dueDate)}`, { align: "right" });
     if (data.buyer.vatId) doc.text(`USt-IdNr. Empfänger: ${data.buyer.vatId}`, { align: "right" });
 

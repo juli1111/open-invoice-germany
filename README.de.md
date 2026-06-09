@@ -24,11 +24,13 @@ Verbinde deine lokale Instanz mit **Claude Code** oder Claude Desktop und erstel
 
 > „Erstelle eine Rechnung an Müller GmbH über 3 Stunden Beratung à 95 €, Leistung heute, schreib sie fest und exportier die XRechnung."
 
-Claude ruft die passenden Tools auf (Kunde/Leistung anlegen → Rechnung → festschreiben → PDF + XRechnung). Das Festschreiben **erzwingt** die § 14-Pflichtangaben — nicht-konforme Rechnungen sind ausgeschlossen, alles bleibt lokal. Setup + Beispiele: **[docs/MCP.md](docs/MCP.md)**.
+Claude ruft die passenden Tools auf (Kunde/Leistung anlegen → Rechnung → festschreiben → PDF + XRechnung). Das Festschreiben **erzwingt** die § 14-Pflichtangaben — nicht-konforme Rechnungen sind ausgeschlossen. Die Rechnung wird lokal erstellt und gespeichert. Setup + Beispiele: **[docs/MCP.md](docs/MCP.md)**.
 
 ```bash
 npm run mcp   # MCP-Server (stdio) starten / in Claude Code via .mcp.json einbinden
 ```
+
+> 🔒 **Datenschutz (DSGVO).** Der App-Kern läuft **zu 100 % lokal**, das MCP-Feature ist aber optional und **nicht automatisch DSGVO-konform**: Sobald ein **Cloud-LLM** (z. B. Claude) die Rechnung erstellt, werden die beschriebenen Inhalte (Kundenname, Leistungen, Beträge = personenbezogene Daten) an den Anbieter übermittelt und in deinem Auftrag verarbeitet (Auftragsverarbeitung, Art. 28 DSGVO). Für den geschäftlichen Einsatz mit echten Personendaten entweder ein **lokales Modell** nutzen (der MCP-Server ist anbieterneutral) oder einen **API-Zugang mit AVV** — beachte: Claude **Code/Desktop** nutzen immer die Anthropic-Cloud, und das Consumer-**Abo (Pro/Max) hat keinen AVV**. Den Anbieter als Sub-Auftragsverarbeiter im Verarbeitungsverzeichnis und in der Datenschutzerklärung führen. Details: **[docs/MCP.md](docs/MCP.md)**. Keine Rechtsberatung.
 
 ## Funktionen
 

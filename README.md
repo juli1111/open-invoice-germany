@@ -24,11 +24,13 @@ Connect your local instance to **Claude Code** or Claude Desktop and create lega
 
 > "Create an invoice to Müller GmbH for 3 hours of consulting at €95, delivered today, finalise it and export the XRechnung."
 
-Claude calls the right tools in order (create customer/service → invoice → finalise → PDF + XRechnung). Finalising **enforces** the § 14 UStG mandatory fields — non-compliant invoices are rejected, and everything stays local. Setup + examples: **[docs/MCP.md](docs/MCP.md)**.
+Claude calls the right tools in order (create customer/service → invoice → finalise → PDF + XRechnung). Finalising **enforces** the § 14 UStG mandatory fields — non-compliant invoices are rejected. The invoice is created and stored locally. Setup + examples: **[docs/MCP.md](docs/MCP.md)**.
 
 ```bash
 npm run mcp   # start the MCP server (stdio) / wire it into Claude Code via .mcp.json
 ```
+
+> 🔒 **Data protection (GDPR).** The app core runs **100% locally**, but the MCP feature is optional and **not automatically GDPR-compliant**: when you let a **cloud LLM** (e.g. Claude) create the invoice, the data you describe (customer name, items, amounts = personal data) is sent to that provider and processed on your behalf (Art. 28 GDPR). For business use with real personal data, either use a **local model** (the MCP server is model-agnostic) or a **commercial API with a DPA** — note that Claude **Code/Desktop** always use Anthropic's cloud and the consumer **Pro/Max subscription has no DPA**. List the provider as a sub-processor in your records and privacy policy. Details: **[docs/MCP.md](docs/MCP.md)**. Not legal advice.
 
 ## Features
 

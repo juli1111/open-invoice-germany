@@ -1,8 +1,25 @@
 # Rechnungen per Sprache erstellen — mit Claude Code
 
-OpenInvoice Germany bringt einen **MCP-Server** mit. Damit verbindest du deine lokale Instanz mit **Claude Code** (oder Claude Desktop) und erstellst rechtssichere Rechnungen, indem du einfach **sagst, was du willst** — die Daten bleiben komplett bei dir.
+OpenInvoice Germany bringt einen **MCP-Server** mit. Damit verbindest du deine lokale Instanz mit **Claude Code** (oder Claude Desktop) und erstellst rechtssichere Rechnungen, indem du einfach **sagst, was du willst**.
 
 > Die Tools setzen auf den GoBD-/EN-16931-gehärteten Kern auf: Das Festschreiben **erzwingt** die § 14-Pflichtangaben, festgeschriebene Rechnungen sind unveränderbar. Die KI kann also keine *nicht*-konforme Rechnung erzeugen.
+
+## 🔒 Datenschutz (DSGVO) — bevor du echte Kundendaten nutzt
+
+Der **Rechnungs-Kern von OpenInvoice läuft zu 100 % lokal** (deine Datenbank, dein Rechner). Das MCP-Feature ist **optional**.
+
+Sobald du eine Rechnung von einem **Cloud-LLM** (z. B. Claude) erstellen lässt, werden die Inhalte, die du beschreibst — Kundenname, Adresse, Leistungen, Beträge = **personenbezogene Daten** — an den LLM-Anbieter **übermittelt** und dort in deinem Auftrag verarbeitet (**Auftragsverarbeitung, Art. 28 DSGVO**). Der „lokal"-Charakter gilt also für die App, **nicht** automatisch für den KI-Pfad.
+
+Für den geschäftlichen Einsatz mit echten Personendaten gibt es zwei saubere Wege:
+
+| Weg | Datenfluss | DSGVO-Status |
+|-----|-----------|--------------|
+| **Lokales Modell** — den MCP-Server von einem MCP-Client betreiben lassen, der ein **lokales Modell** nutzt (z. B. via Ollama/LM Studio); MCP ist anbieterneutral | bleibt auf deinem Rechner | kein Drittanbieter, kein AVV nötig |
+| **Cloud-LLM mit AVV** — z. B. die **Claude API** (Anthropic Commercial Terms: DPA inklusive, kein Training, SCCs für den US-Transfer) | geht an den Anbieter | AVV vorhanden; Anbieter als Sub-Auftragsverarbeiter dokumentieren |
+
+> ⚠️ **Claude Code / Claude Desktop** routen immer an die Anthropic-Cloud. Das **Consumer-Abo (Claude Pro/Max) hat keinen AVV** und ist für fremde Personendaten nicht geeignet — wer Claude nutzen will, sollte den **API-Zugang** (Commercial Terms) verwenden. Für einen rein lokalen Datenfluss einen MCP-Client mit lokalem Modell wählen.
+
+Nimm den genutzten LLM-Anbieter in dein **Verzeichnis von Verarbeitungstätigkeiten** und deine **Datenschutzerklärung** auf. Dies ist **keine Rechtsberatung**; rechtliche Grundlagen in [COMPLIANCE.md](../COMPLIANCE.md).
 
 ## 1. Einrichten
 

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Quote" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'ANGEBOT';

@@ -108,6 +108,39 @@ export const createInvoiceSchema = z.object({
 });
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 
+// ── Geschäftsdokumente (Angebot / Auftragsbestätigung / Proforma) ────────────
+export const DocumentKind = z.enum(["ANGEBOT", "AUFTRAGSBESTAETIGUNG", "PROFORMA"]);
+export type DocumentKind = z.infer<typeof DocumentKind>;
+
+export const createDocumentSchema = z.object({
+  kind: DocumentKind,
+  customerId: z.string().min(1),
+  taxScheme: TaxScheme.default("REGULAR"),
+  currency: z.string().length(3).default("EUR"),
+  validUntil: z.coerce.date().optional(),
+  notes: z.string().optional(),
+  lines: z.array(invoiceLineInputSchema).min(1),
+});
+export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
+
+// ── Teilgutschrift ───────────────────────────────────────────────────────────
+export const partialCreditSchema = z.object({
+  notes: z.string().optional(),
+  lines: z
+    .array(
+      z.object({
+        description: z.string().min(1),
+        quantityMilli: z.number().int().refine((v) => v !== 0, "Menge darf nicht 0 sein"),
+        unit: z.string().default("C62"),
+        unitNetPriceCents: z.number().int(),
+        taxRate: TaxRate,
+        taxCategory: TaxCategory.default("S"),
+      }),
+    )
+    .min(1),
+});
+export type PartialCreditInput = z.infer<typeof partialCreditSchema>;
+
 export const recordPaymentSchema = z.object({
   amountCents: z.number().int().positive(),
   paidAt: z.coerce.date().optional(),

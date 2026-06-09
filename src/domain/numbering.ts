@@ -20,6 +20,9 @@ const DOC_TYPE_DEFAULT_PREFIX: Record<string, string> = {
   INVOICE: "RE-",
   CREDIT_NOTE: "GS-",
   QUOTE: "AN-",
+  ANGEBOT: "AN-",
+  AUFTRAGSBESTAETIGUNG: "AB-",
+  PROFORMA: "PF-",
   DUNNING: "MA-",
 };
 

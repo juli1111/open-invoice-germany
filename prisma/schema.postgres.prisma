@@ -117,15 +117,17 @@ model NumberRange {
   @@index([orgId])
 }
 
-/// Angebot — KEIN GoBD-Beleg, frei editier-/löschbar.
+/// Geschäftsdokument ohne Beleg-Charakter (Angebot/Auftragsbestätigung/Proforma).
+/// KEIN GoBD-Beleg, frei editier-/löschbar. Tax-Belege sind ausschließlich Invoice.
 model Quote {
   id                   String   @id @default(cuid())
   orgId                String
   org                  Organization @relation(fields: [orgId], references: [id])
   customerId           String
   customer             Customer @relation(fields: [customerId], references: [id])
+  kind                 String   @default("ANGEBOT") // ANGEBOT | AUFTRAGSBESTAETIGUNG | PROFORMA
   number               String?
-  status               String   @default("DRAFT") // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED
+  status               String   @default("DRAFT") // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED | CONVERTED
   issueDate            DateTime @default(now())
   validUntil           DateTime?
   currency             String   @default("EUR")
