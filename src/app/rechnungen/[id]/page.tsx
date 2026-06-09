@@ -4,6 +4,9 @@ import { prisma } from "@/lib/db";
 import { formatCents, formatQuantity } from "@/lib/money";
 import { StatusBadge } from "@/components/StatusBadge";
 import { finalizeAction, cancelAction } from "@/app/actions/invoices";
+import { PaymentForm } from "@/components/PaymentForm";
+import { DunningButton } from "@/components/DunningButton";
+import { DUNNING_LEVEL_TITLE } from "@/lib/dunning";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +32,24 @@ export default async function InvoiceDetail({
 
   const invoice = await prisma.invoice.findUnique({
     where: { id },
-    include: { lines: { orderBy: { position: "asc" } }, customer: true, org: true },
+    include: {
+      lines: { orderBy: { position: "asc" } },
+      customer: true,
+      org: true,
+      payments: true,
+      dunnings: { orderBy: { level: "asc" } },
+    },
   });
   if (!invoice) notFound();
 
   const isDraft = invoice.status === "DRAFT";
   const isCancelled = invoice.status === "CANCELLED";
   const breakdown = JSON.parse(invoice.taxBreakdownJson) as Array<{ taxRate: number; netCents: number; taxCents: number }>;
+  const isInvoiceType = invoice.type === "INVOICE" || invoice.type === "CORRECTION";
+  const openCents = invoice.grossTotalCents - invoice.paidAmountCents;
+  const dueDate = invoice.dueDate ?? invoice.issueDate;
+  const isOverdue = !isDraft && !isCancelled && openCents > 0 && new Date() > dueDate;
+  const canPay = !isDraft && !isCancelled && isInvoiceType && openCents > 0;
 
   return (
     <div className="space-y-6">
@@ -183,6 +197,45 @@ export default async function InvoiceDetail({
       </div>
 
       {invoice.notes && <p className="text-sm text-slate-600">{invoice.notes}</p>}
+
+      {isInvoiceType && !isDraft && !isCancelled && (
+        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-semibold text-slate-900">Zahlung & Mahnwesen</h2>
+            <span className="text-sm text-slate-600">
+              Bezahlt: {formatCents(invoice.paidAmountCents, invoice.currency)} · Offen:{" "}
+              <strong>{formatCents(openCents, invoice.currency)}</strong>
+              {isOverdue && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">überfällig</span>}
+            </span>
+          </div>
+
+          {canPay && <PaymentForm invoiceId={invoice.id} openCents={openCents} />}
+
+          {openCents > 0 && (
+            <div className="flex flex-wrap items-center gap-3">
+              <DunningButton invoiceId={invoice.id} />
+              {!isOverdue && <span className="text-xs text-slate-400">Fällig am {deDate(dueDate)}</span>}
+            </div>
+          )}
+
+          {invoice.dunnings.length > 0 && (
+            <div className="space-y-1 text-sm">
+              {invoice.dunnings.map((d) => (
+                <div key={d.id} className="flex items-center justify-between border-t border-slate-100 pt-1 text-slate-600">
+                  <span>
+                    {DUNNING_LEVEL_TITLE[d.level] ?? `${d.level}. Mahnung`} · {d.number} · {deDate(d.sentAt)}
+                    {d.interestAmountCents > 0 ? ` · Zinsen ${formatCents(d.interestAmountCents, invoice.currency)}` : ""}
+                    {d.flatFee40Cents > 0 ? ` · Pauschale ${formatCents(d.flatFee40Cents, invoice.currency)}` : ""}
+                  </span>
+                  <a href={`/api/dunnings/${d.id}/pdf`} target="_blank" className="text-indigo-600 hover:underline">
+                    PDF
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

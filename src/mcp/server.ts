@@ -26,6 +26,8 @@ import { createDraftInvoice } from "@/domain/invoice/create";
 import { finalizeInvoice, FinalizeError } from "@/domain/invoice/finalize";
 import { cancelInvoice, CancelError } from "@/domain/invoice/cancel";
 import { createPartialCreditNote, CreditError } from "@/domain/invoice/credit";
+import { recordPayment, PaymentError } from "@/domain/invoice/payment";
+import { createDunning, DunningError } from "@/domain/dunning/create";
 import { createBusinessDocument } from "@/domain/document/create";
 import { convertDocumentToInvoice, ConvertError } from "@/domain/document/convert";
 import { loadEInvoiceData } from "@/lib/einvoice/load";
@@ -33,7 +35,7 @@ import { buildXRechnungUBL } from "@/lib/einvoice/xrechnung";
 import { renderZugferdPdf } from "@/lib/einvoice/zugferd";
 import { validateXRechnung } from "@/lib/einvoice/en16931-core";
 import { renderInvoicePdf } from "@/lib/pdf/invoice-pdf";
-import { organizationSchema, customerSchema, createInvoiceSchema, createDocumentSchema, TaxScheme } from "@/schemas";
+import { organizationSchema, customerSchema, createInvoiceSchema, createDocumentSchema, recordPaymentSchema, TaxScheme } from "@/schemas";
 
 // ── Helfer ────────────────────────────────────────────────────────────────
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -719,6 +721,59 @@ server.registerTool(
       return ok(`Teilgutschrift ${res.creditNote.number} zu ${res.originalNumber} erstellt · Brutto ${formatCents(res.creditNote.grossTotalCents)}.`);
     } catch (e) {
       if (e instanceof CreditError) return fail(e.message);
+      return fail(`Fehler: ${(e as Error).message}`);
+    }
+  },
+);
+
+// ── record_payment ───────────────────────────────────────────────────────────
+server.registerTool(
+  "record_payment",
+  {
+    title: "Zahlung erfassen",
+    description: "Erfasst einen Zahlungseingang auf eine festgeschriebene Rechnung und aktualisiert offenen Betrag + Status (bezahlt/teilbezahlt).",
+    inputSchema: {
+      invoice: z.string().describe("Rechnungs-ID oder -Nummer"),
+      amountEuro: z.number().describe("Gezahlter Betrag in Euro"),
+      method: z.enum(["TRANSFER", "CASH", "CARD", "SEPA"]).default("TRANSFER"),
+      reference: z.string().optional(),
+    },
+  },
+  async (args): Promise<Result> => {
+    try {
+      const org = await requireOrg();
+      const inv = await resolveInvoice(org.id, args.invoice);
+      const updated = await recordPayment(
+        inv.id,
+        recordPaymentSchema.parse({ amountCents: euroToCents(args.amountEuro), method: args.method, reference: args.reference }),
+      );
+      const open = updated.grossTotalCents - updated.paidAmountCents;
+      return ok(`Zahlung erfasst. Status: ${updated.status} · offen: ${formatCents(open)}.`);
+    } catch (e) {
+      if (e instanceof PaymentError) return fail(e.message);
+      return fail(`Fehler: ${(e as Error).message}`);
+    }
+  },
+);
+
+// ── create_dunning ───────────────────────────────────────────────────────────
+server.registerTool(
+  "create_dunning",
+  {
+    title: "Mahnung / Zahlungserinnerung erstellen",
+    description:
+      "Erstellt die nächste Mahnstufe (Zahlungserinnerung → 1./2. Mahnung) zu einer überfälligen, offenen Rechnung. Ab Stufe 1 mit Verzugszins (§ 288 BGB) und 40-€-Pauschale (nur B2B).",
+    inputSchema: { invoice: z.string().describe("Rechnungs-ID oder -Nummer") },
+  },
+  async ({ invoice }): Promise<Result> => {
+    try {
+      const org = await requireOrg();
+      const inv = await resolveInvoice(org.id, invoice);
+      const res = await createDunning(inv.id);
+      const title = ["Zahlungserinnerung", "1. Mahnung", "2. Mahnung"][res.level] ?? `${res.level}. Mahnung`;
+      return ok(`${title} ${res.dunning.number} erstellt · offen ${formatCents(res.openAmountCents)} · Gesamtforderung ${formatCents(res.totalCents)}.`);
+    } catch (e) {
+      if (e instanceof DunningError) return fail(e.message);
       return fail(`Fehler: ${(e as Error).message}`);
     }
   },

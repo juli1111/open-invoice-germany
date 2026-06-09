@@ -4,10 +4,12 @@ import { createDraftInvoice } from "@/domain/invoice/create";
 import { finalizeInvoice } from "@/domain/invoice/finalize";
 import { cancelInvoice } from "@/domain/invoice/cancel";
 import { createPartialCreditNote } from "@/domain/invoice/credit";
+import { recordPayment } from "@/domain/invoice/payment";
+import { createDunning } from "@/domain/dunning/create";
 import { createBusinessDocument } from "@/domain/document/create";
 import { convertDocumentToInvoice } from "@/domain/document/convert";
 import { verifyChain, type ChainEntry } from "@/domain/changelog";
-import { createDocumentSchema, type CreateInvoiceInput } from "@/schemas";
+import { createDocumentSchema, recordPaymentSchema, type CreateInvoiceInput } from "@/schemas";
 
 let orgId: string;
 let customerId: string;
@@ -165,5 +167,24 @@ describe("GoBD: Nummernkreis + Unveränderbarkeit", () => {
     const q = await prisma.quote.findUnique({ where: { id: doc.id } });
     expect(q!.status).toBe("CONVERTED");
     expect(q!.convertedToInvoiceId).toBe(inv.id);
+  });
+
+  it("Zahlung + Mahnwesen: Teilzahlung → PARTIALLY_PAID, Mahnstufen mit Verzugszins", async () => {
+    const draft = await createDraftInvoice(orgId, baseInput({ dueDate: new Date("2026-06-01") }));
+    const fin = await finalizeInvoice(draft.id, { now: FIX_DATE }); // brutto 238,00 €
+    const afterPay = await recordPayment(fin.id, recordPaymentSchema.parse({ amountCents: 10000, method: "TRANSFER", paidAt: FIX_DATE }));
+    expect(afterPay.status).toBe("PARTIALLY_PAID");
+    expect(afterPay.paidAmountCents).toBe(10000);
+
+    const r0 = await createDunning(fin.id, { now: FIX_DATE });
+    expect(r0.level).toBe(0); // Zahlungserinnerung, ohne Zins/Gebühr
+    expect(r0.openAmountCents).toBe(13800); // 238 − 100 = 138 €
+    expect(r0.dunning.number).toMatch(/^MA-\d{4}-\d{4}$/);
+    expect(r0.dunning.interestAmountCents).toBe(0);
+
+    const r1 = await createDunning(fin.id, { now: FIX_DATE });
+    expect(r1.level).toBe(1); // 1. Mahnung -> Verzugszins + 40-€-Pauschale (B2B)
+    expect(r1.dunning.interestAmountCents).toBeGreaterThan(0);
+    expect(r1.dunning.flatFee40Cents).toBe(4000);
   });
 });
