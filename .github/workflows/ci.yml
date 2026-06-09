@@ -14,7 +14,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund # nicht npm ci: saxon-js zieht plattformspezifische optionale Deps
       - run: npx prisma generate
       - run: npm run typecheck
       - run: npm run lint
@@ -49,7 +49,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - run: npm ci
+      - run: npm install --no-audit --no-fund # nicht npm ci: saxon-js zieht plattformspezifische optionale Deps
       - run: npx prisma generate
       - name: Beispiel-XRechnung erzeugen
         run: npx tsx scripts/generate-sample-xrechnung.ts tmp/sample-xrechnung.xml
