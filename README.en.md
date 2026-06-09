@@ -20,7 +20,7 @@ GoBD core (immutable finalisation, gapless number ranges, append-only audit hash
 ## Quick start (solo / SQLite)
 
 ```bash
-git clone https://github.com/juli1111/open-invoice-germany.git
+git clone https://github.com/automationsmanufaktur-labs/open-invoice-germany.git
 cd open-invoice-germany
 npm install
 cp .env.example .env

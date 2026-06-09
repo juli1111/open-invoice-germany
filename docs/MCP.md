@@ -7,7 +7,7 @@ OpenInvoice Germany bringt einen **MCP-Server** mit. Damit verbindest du deine l
 ## 1. Einrichten
 
 ```bash
-git clone https://github.com/juli1111/open-invoice-germany.git
+git clone https://github.com/automationsmanufaktur-labs/open-invoice-germany.git
 cd open-invoice-germany
 npm install
 cp .env.example .env

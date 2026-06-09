@@ -25,4 +25,4 @@ Mahnwesen-UI, wiederkehrende Rechnungen/Abos, DATEV-/CSV-Export, OSS/ZM, USt-Vor
 
 ---
 
-Etwas davon blockiert dich? → [Issue eröffnen](https://github.com/juli1111/open-invoice-germany/issues). Rechtliche Grundlagen: [COMPLIANCE.md](../COMPLIANCE.md).
+Etwas davon blockiert dich? → [Issue eröffnen](https://github.com/automationsmanufaktur-labs/open-invoice-germany/issues). Rechtliche Grundlagen: [COMPLIANCE.md](../COMPLIANCE.md).

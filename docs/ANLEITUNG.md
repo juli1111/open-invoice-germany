@@ -11,7 +11,7 @@ Diese Anleitung führt dich von der Installation bis zur ersten fertigen, rechts
 Voraussetzung: [Node.js](https://nodejs.org) ≥ 20.
 
 ```bash
-git clone https://github.com/juli1111/open-invoice-germany.git
+git clone https://github.com/automationsmanufaktur-labs/open-invoice-germany.git
 cd open-invoice-germany
 npm install
 cp .env.example .env        # Default: SQLite-Datei prisma/dev.db
@@ -95,4 +95,4 @@ Auf der Rechnungs-Detailseite: „**Festschreiben**". Dabei passiert (GoBD-konfo
 
 ---
 
-Fragen oder Fehler? → [Issues auf GitHub](https://github.com/juli1111/open-invoice-germany/issues) · Beitragen: [CONTRIBUTING.md](../CONTRIBUTING.md)
+Fragen oder Fehler? → [Issues auf GitHub](https://github.com/automationsmanufaktur-labs/open-invoice-germany/issues) · Beitragen: [CONTRIBUTING.md](../CONTRIBUTING.md)

@@ -43,7 +43,7 @@ export default function Home() {
             Zu den Rechnungen
           </Link>
           <a
-            href="https://github.com/juli1111/open-invoice-germany"
+            href="https://github.com/automationsmanufaktur-labs/open-invoice-germany"
             className="rounded-md border border-slate-300 bg-white px-5 py-2.5 font-medium text-slate-700 hover:bg-slate-50"
           >
             Quellcode auf GitHub

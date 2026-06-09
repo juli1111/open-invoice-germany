@@ -5,7 +5,7 @@
 **Kostenlose, self-hostbare Open-Source-Rechnungssoftware für Deutschland.**
 E-Rechnung (XRechnung / ZUGFeRD) · GoBD · § 14 UStG · Kleinunternehmer § 19 · DSGVO
 
-[![CI](https://github.com/juli1111/open-invoice-germany/actions/workflows/ci.yml/badge.svg)](https://github.com/juli1111/open-invoice-germany/actions/workflows/ci.yml)
+[![CI](https://github.com/automationsmanufaktur-labs/open-invoice-germany/actions/workflows/ci.yml/badge.svg)](https://github.com/automationsmanufaktur-labs/open-invoice-germany/actions/workflows/ci.yml)
 &nbsp;·&nbsp; Lizenz: **AGPL-3.0** &nbsp;·&nbsp; [English](README.en.md)
 
 </div>
@@ -51,7 +51,7 @@ Geldbeträge als Integer-Cent, Mengen als Integer-Milliunits, Steuer pro EN-1693
 ## Schnellstart (Solo / SQLite — kein Server nötig)
 
 ```bash
-git clone https://github.com/juli1111/open-invoice-germany.git
+git clone https://github.com/automationsmanufaktur-labs/open-invoice-germany.git
 cd open-invoice-germany
 npm install
 cp .env.example .env            # DATABASE_URL="file:./dev.db" ist Default
