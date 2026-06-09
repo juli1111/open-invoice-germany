@@ -1,0 +1,274 @@
+// OpenInvoice Germany — Datenmodell
+// Portabel zwischen SQLite (Solo/Dev) und PostgreSQL (Docker/Prod):
+//   - KEINE Prisma-enums  -> String + Zod-Validierung (src/schemas)
+//   - KEIN Decimal        -> Integer-Cent (…Cents) für Geld
+//   - KEINE Float-Mengen  -> Integer-Milliunits (quantityMilli, 1/1000)
+//   - KEIN Json-Typ       -> serialisierter String (…Json), via Zod geparst
+// Begründung + Rechtsbezug: siehe COMPLIANCE.md und docs/ARCHITEKTUR.md
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Ausstellender Unternehmer (Mandant). Tenancy-Diskriminator orgId auf allen Belegtabellen.
+model Organization {
+  id                String  @id @default(cuid())
+  legalName         String
+  addressLine1      String
+  addressLine2      String?
+  postalCode        String
+  city              String
+  country           String  @default("DE")
+  email             String?
+  phone             String?
+  website           String?
+  taxNumber         String? // Steuernummer (§14 Abs.4 Nr.2)
+  vatId             String? // USt-IdNr. (§14 Abs.4 Nr.2)
+  kuIdNr            String? // §19a Kleinunternehmer-IdNr.
+  smallBusiness     Boolean @default(false) // §19 UStG
+  defaultTaxScheme  String  @default("REGULAR") // REGULAR | KLEINUNTERNEHMER | DIFFERENZ
+  iban              String?
+  bic               String?
+  bankName          String?
+  logoPath          String?
+  electronicAddress String? // Peppol-Adresse des Ausstellers
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  customers    Customer[]
+  products     Product[]
+  quotes       Quote[]
+  invoices     Invoice[]
+  numberRanges NumberRange[]
+  changeLogs   ChangeLog[]
+}
+
+/// Kunde / Leistungsempfänger.
+model Customer {
+  id                      String    @id @default(cuid())
+  orgId                   String
+  org                     Organization @relation(fields: [orgId], references: [id])
+  type                    String    @default("BUSINESS") // BUSINESS | CONSUMER
+  name                    String
+  contactName             String?
+  addressLine1            String
+  addressLine2            String?
+  postalCode              String
+  city                    String
+  countryCode             String    @default("DE")
+  email                   String?
+  phone                   String?
+  vatId                   String?
+  vatIdValidatedAt        DateTime? // §18e / VIES qualifizierte Bestätigung
+  leitwegId               String?   // B2G, BT-10
+  peppolId                String?
+  defaultPaymentTermsDays Int       @default(14)
+  notes                   String?
+  isArchived              Boolean   @default(false) // Soft-Delete; kein Hard-Delete bei Belegbezug (DSGVO vs. §147 AO)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  quotes   Quote[]
+  invoices Invoice[]
+
+  @@index([orgId])
+}
+
+/// Produkt/Leistung im Katalog (kein Beleg, frei editierbar).
+model Product {
+  id            String  @id @default(cuid())
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id])
+  name          String
+  description   String?
+  unit          String  @default("C62") // UN/ECE Rec 20: C62=Stück, HUR=Stunde, KGM=kg, MTR=m …
+  netPriceCents Int
+  taxRate       Int     @default(19)    // 19 | 7 | 0
+  taxCategory   String  @default("S")   // UNTDID 5305: S | AE | K | G | E | Z
+  differential  Boolean @default(false) // §25a Differenzbesteuerung
+  isArchived    Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([orgId])
+}
+
+/// Nummernkreis — transaktionaler Zähler. Nummern werden NUR bei Festschreibung vergeben.
+model NumberRange {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id])
+  docType      String   // QUOTE | INVOICE | CREDIT_NOTE | DUNNING
+  prefix       String   @default("")
+  pattern      String   @default("{PREFIX}{YYYY}-{SEQ}") // Platzhalter {PREFIX}{YYYY}{MM}{SEQ}
+  seqPadding   Int      @default(4)
+  year         Int      @default(0) // 0 = jahresunabhängig
+  currentValue Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([orgId, docType, year])
+  @@index([orgId])
+}
+
+/// Angebot — KEIN GoBD-Beleg, frei editier-/löschbar.
+model Quote {
+  id                   String   @id @default(cuid())
+  orgId                String
+  org                  Organization @relation(fields: [orgId], references: [id])
+  customerId           String
+  customer             Customer @relation(fields: [customerId], references: [id])
+  number               String?
+  status               String   @default("DRAFT") // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED
+  issueDate            DateTime @default(now())
+  validUntil           DateTime?
+  currency             String   @default("EUR")
+  taxScheme            String   @default("REGULAR")
+  notes                String?
+  netTotalCents        Int      @default(0)
+  taxTotalCents        Int      @default(0)
+  grossTotalCents      Int      @default(0)
+  convertedToInvoiceId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  lines QuoteLine[]
+
+  @@index([orgId])
+  @@index([customerId])
+}
+
+model QuoteLine {
+  id                String @id @default(cuid())
+  quoteId           String
+  quote             Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  position          Int
+  description       String
+  quantityMilli     Int    // 1/1000 Einheit
+  unit              String @default("C62")
+  unitNetPriceCents Int
+  taxRate           Int
+  taxCategory       String @default("S")
+  discountPermille  Int    @default(0) // 0..1000 (= 0..100 %)
+  lineNetCents      Int
+
+  @@index([quoteId])
+}
+
+/// Rechnung — GoBD-relevanter Beleg. Nach Festschreibung append-only.
+model Invoice {
+  id                    String   @id @default(cuid())
+  orgId                 String
+  org                   Organization @relation(fields: [orgId], references: [id])
+  customerId            String
+  customer              Customer @relation(fields: [customerId], references: [id])
+  number                String?  @unique // NULL bis Festschreibung
+  status                String   @default("DRAFT") // DRAFT | FINALIZED | SENT | PAID | PARTIALLY_PAID | CANCELLED
+  type                  String   @default("INVOICE") // INVOICE | CREDIT_NOTE | CORRECTION
+  taxScheme             String   @default("REGULAR") // REGULAR | KLEINUNTERNEHMER | DIFFERENZ | REVERSE_CHARGE | IG_LIEFERUNG | IG_LEISTUNG
+  currency              String   @default("EUR")
+  issueDate             DateTime @default(now())
+  deliveryDate          DateTime?
+  deliveryStart         DateTime?
+  deliveryEnd           DateTime?
+  dueDate               DateTime?
+  buyerReference        String?  // BT-10 / Leitweg-ID (B2G)
+  notes                 String?
+  paymentTerms          String?  // Skonto-/Zahlungsbedingungen (Freitext, §14 Abs.4 Nr.7)
+  netTotalCents         Int      @default(0)
+  taxTotalCents         Int      @default(0)
+  grossTotalCents       Int      @default(0)
+  paidAmountCents       Int      @default(0)
+  taxBreakdownJson      String   @default("[]") // [{taxCategory,taxRate,netCents,taxCents}]
+  consumerRetentionHint Boolean  @default(false) // §14 Abs.4 Nr.9 / §14b Abs.1 S.5
+  reversedByInvoiceId   String?  // Storno-Verknüpfung
+  correctsInvoiceId     String?  // Korrekturrechnung-Verknüpfung (§31 Abs.5 UStDV)
+  xmlFormat             String?  // XRECHNUNG | ZUGFERD
+  xmlHash               String?
+  pdfPath               String?
+  finalizedAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  lines    InvoiceLine[]
+  payments Payment[]
+  dunnings Dunning[]
+
+  @@index([orgId])
+  @@index([customerId])
+}
+
+model InvoiceLine {
+  id                String  @id @default(cuid())
+  invoiceId         String
+  invoice           Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position          Int
+  productId         String? // nur Snapshot-Referenz, kein Live-Lookup
+  description       String
+  quantityMilli     Int
+  unit              String  @default("C62")
+  unitNetPriceCents Int
+  taxRate           Int
+  taxCategory       String  @default("S")
+  discountPermille  Int     @default(0)
+  lineNetCents      Int
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amountCents Int
+  paidAt      DateTime @default(now())
+  method      String   @default("TRANSFER") // TRANSFER | CASH | CARD | SEPA
+  reference   String?
+  isSkonto    Boolean  @default(false) // §17-Fall: keine Rechnungsberichtigung nötig
+  createdAt   DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+model Dunning {
+  id                       String   @id @default(cuid())
+  invoiceId                String
+  invoice                  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  number                   String?
+  level                    Int      // 0 = Zahlungserinnerung, 1, 2
+  sentAt                   DateTime @default(now())
+  dueDate                  DateTime?
+  baseInterestRatePermille Int?     // Basiszinssatz-Snapshot (‰ zum Verzugsstichtag)
+  interestRatePoints       Int?     // 5 (B2C) oder 9 (B2B) Prozentpunkte über Basiszins
+  interestAmountCents      Int      @default(0)
+  lateFeeCents             Int      @default(0) // nur konkrete Kosten, KEINE Pauschale
+  flatFee40Cents           Int      @default(0) // §288 Abs.5, nur B2B
+  pdfPath                  String?
+  createdAt                DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+/// Append-only Änderungsprotokoll (GoBD-Kern). Hash-Chain macht Manipulation erkennbar.
+model ChangeLog {
+  id       Int      @id @default(autoincrement()) // streng monotone Einfüge-Reihenfolge für die Hash-Chain
+  orgId    String
+  org      Organization @relation(fields: [orgId], references: [id])
+  entity   String   // INVOICE | PAYMENT | CUSTOMER | …
+  entityId String
+  action   String   // CREATE | UPDATE | FINALIZE | CANCEL | DELETE_PRE_FINALIZE
+  actor    String   @default("system")
+  at       DateTime @default(now())
+  diffJson String   @default("{}")
+  prevHash String   @default("")
+  hash     String
+
+  @@index([orgId])
+  @@index([entity, entityId])
+}

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          DATABASE_URL: "file:./dev.db"
+
+  # Autoritative E-Rechnung-Prüfung mit dem offiziellen KoSIT-Validator (Java).
+  # Hinweis: Versions-Pins ggf. aktualisieren. Solange nicht lokal verifiziert,
+  # läuft der Job mit continue-on-error (blockt PRs nicht). Zum Scharfschalten
+  # die Zeile `continue-on-error: true` entfernen.
+  xrechnung-kosit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      VALIDATOR_VERSION: "1.5.0"
+      CONFIG_RELEASE: "release-2024-06-20"
+      CONFIG_FILE: "validator-configuration-xrechnung_3.0.1_2024-06-20"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Beispiel-XRechnung erzeugen
+        run: npx tsx scripts/generate-sample-xrechnung.ts tmp/sample-xrechnung.xml
+      - name: KoSIT-Validator + XRechnung-Konfiguration laden
+        run: |
+          mkdir -p kosit/config
+          curl -fsSL -o kosit/validator.zip \
+            "https://github.com/itplr-kosit/validator/releases/download/v${VALIDATOR_VERSION}/validator-${VALIDATOR_VERSION}-distribution.zip"
+          curl -fsSL -o kosit/config.zip \
+            "https://github.com/itplr-kosit/validator-configuration-xrechnung/releases/download/${CONFIG_RELEASE}/${CONFIG_FILE}.zip"
+          unzip -q kosit/validator.zip -d kosit
+          unzip -q kosit/config.zip -d kosit/config
+      - name: Validieren
+        run: |
+          JAR=$(find kosit -name 'validationtool-*-standalone.jar' | head -1)
+          SCENARIOS=$(find kosit/config -name 'scenarios.xml' | head -1)
+          REPO=$(dirname "$SCENARIOS")
+          echo "Validator: $JAR"
+          echo "Szenarien: $SCENARIOS"
+          java -jar "$JAR" -s "$SCENARIOS" -r "$REPO" tmp/sample-xrechnung.xml

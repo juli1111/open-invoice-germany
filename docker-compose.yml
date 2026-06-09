@@ -1,0 +1,54 @@
+# OpenInvoice Germany — Self-Hosting mit PostgreSQL.
+# Start:  docker compose up --build
+# (Für den Solo-Betrieb ohne Server genügt SQLite — siehe README, kein Docker nötig.)
+#
+# ACHTUNG: Diese Compose-Datei nutzt für die lokale Demo passwortlose Trust-Auth.
+# Für PRODUKTION: echtes Passwort setzen (POSTGRES_PASSWORD), DATABASE_URL mit
+# Passwort + ?sslmode=require versehen und die Datei NICHT mit Klartext-Secrets
+# committen (nutze stattdessen .env / Secrets-Management).
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: oig
+      POSTGRES_DB: openinvoice
+      POSTGRES_HOST_AUTH_METHOD: trust # NUR lokal — in Produktion durch Passwort ersetzen
+    volumes:
+      - oig-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oig -d openinvoice"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://oig@db:5432/openinvoice?schema=public"
+      # E-Rechnung-Sidecar (optional, siehe unten):
+      # EINVOICE_SERVICE_URL: "http://einvoice:8080"
+    ports:
+      - "3000:3000"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Optionaler ZUGFeRD/XRechnung-Sidecar (Mustangproject, JVM).
+  # Erzeugt PDF/A-3-Hybride + validiert gegen EN 16931. Ohne ihn kann die App
+  # XRechnung-XML + einfaches PDF ausstellen. Eigenes Image/Build erforderlich —
+  # siehe docs/ARCHITEKTUR.md (Abschnitt 2). Opt-in:
+  #   docker compose --profile einvoice up
+  #
+  # einvoice:
+  #   profiles: ["einvoice"]
+  #   build: ./einvoice-service
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8085:8080"
+
+volumes:
+  oig-db:

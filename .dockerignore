@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+coverage
+tmp
+*.db
+*.db-journal
+.env
+.env.*
+!.env.example
+npm-debug.log*
