@@ -3,8 +3,11 @@ import { prisma, dbInternal, GobdImmutabilityError } from "@/lib/db";
 import { createDraftInvoice } from "@/domain/invoice/create";
 import { finalizeInvoice } from "@/domain/invoice/finalize";
 import { cancelInvoice } from "@/domain/invoice/cancel";
+import { createPartialCreditNote } from "@/domain/invoice/credit";
+import { createBusinessDocument } from "@/domain/document/create";
+import { convertDocumentToInvoice } from "@/domain/document/convert";
 import { verifyChain, type ChainEntry } from "@/domain/changelog";
-import type { CreateInvoiceInput } from "@/schemas";
+import { createDocumentSchema, type CreateInvoiceInput } from "@/schemas";
 
 let orgId: string;
 let customerId: string;
@@ -128,5 +131,39 @@ describe("GoBD: Nummernkreis + Unveränderbarkeit", () => {
     }));
     expect(entries.length).toBeGreaterThan(3);
     expect(verifyChain(entries).valid).toBe(true);
+  });
+
+  it("Teilgutschrift: Original bleibt FINALIZED, Gutschrift ist negativ", async () => {
+    const fin = await finalizeInvoice((await createDraftInvoice(orgId, baseInput())).id, { now: FIX_DATE });
+    const res = await createPartialCreditNote(
+      fin.id,
+      { lines: [{ description: "Teilerstattung", quantityMilli: 1000, unit: "HUR", unitNetPriceCents: 10000, taxRate: 19, taxCategory: "S" }] },
+      { now: FIX_DATE },
+    );
+    expect(res.creditNote.type).toBe("CREDIT_NOTE");
+    expect(res.creditNote.grossTotalCents).toBe(-11900); // 100 € netto + 19 % = 119 €, negativ
+    const original = await prisma.invoice.findUnique({ where: { id: fin.id } });
+    expect(original!.status).toBe("FINALIZED"); // NICHT storniert
+  });
+
+  it("Dokument: Angebot anlegen + in Rechnung umwandeln", async () => {
+    const doc = await createBusinessDocument(
+      orgId,
+      createDocumentSchema.parse({
+        kind: "ANGEBOT",
+        customerId,
+        taxScheme: "REGULAR",
+        currency: "EUR",
+        lines: [{ description: "Pos", quantityMilli: 1000, unit: "C62", unitNetPriceCents: 5000, taxRate: 19, taxCategory: "S", discountPermille: 0 }],
+      }),
+    );
+    expect(doc.number).toMatch(/^AN-\d{4}-\d{4}$/);
+    const inv = await convertDocumentToInvoice(doc.id);
+    expect(inv.type).toBe("INVOICE");
+    expect(inv.status).toBe("DRAFT");
+    expect(inv.grossTotalCents).toBe(5950); // 50 € + 19 % = 59,50 €
+    const q = await prisma.quote.findUnique({ where: { id: doc.id } });
+    expect(q!.status).toBe("CONVERTED");
+    expect(q!.convertedToInvoiceId).toBe(inv.id);
   });
 });

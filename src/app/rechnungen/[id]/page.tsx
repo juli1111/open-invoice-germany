@@ -84,6 +84,14 @@ export default async function InvoiceDetail({
             </form>
           )}
           {!isDraft && !isCancelled && invoice.type === "INVOICE" && (
+            <Link
+              href={`/rechnungen/${invoice.id}/teilgutschrift`}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Teilgutschrift
+            </Link>
+          )}
+          {!isDraft && !isCancelled && invoice.type === "INVOICE" && (
             <form action={cancelAction}>
               <input type="hidden" name="id" value={invoice.id} />
               <button className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-50">

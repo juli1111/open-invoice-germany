@@ -35,6 +35,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/produkte" className="hidden text-slate-600 hover:text-slate-900 sm:inline">
                   Produkte
                 </Link>
+                <Link href="/dokumente" className="hidden text-slate-600 hover:text-slate-900 sm:inline">
+                  Dokumente
+                </Link>
                 <Link href="/einstellungen" className="text-slate-600 hover:text-slate-900">
                   Einstellungen
                 </Link>

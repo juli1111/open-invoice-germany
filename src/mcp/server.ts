@@ -25,12 +25,15 @@ import { SCHEME_NOTICE } from "@/domain/invoice/mandatory";
 import { createDraftInvoice } from "@/domain/invoice/create";
 import { finalizeInvoice, FinalizeError } from "@/domain/invoice/finalize";
 import { cancelInvoice, CancelError } from "@/domain/invoice/cancel";
+import { createPartialCreditNote, CreditError } from "@/domain/invoice/credit";
+import { createBusinessDocument } from "@/domain/document/create";
+import { convertDocumentToInvoice, ConvertError } from "@/domain/document/convert";
 import { loadEInvoiceData } from "@/lib/einvoice/load";
 import { buildXRechnungUBL } from "@/lib/einvoice/xrechnung";
 import { renderZugferdPdf } from "@/lib/einvoice/zugferd";
 import { validateXRechnung } from "@/lib/einvoice/en16931-core";
 import { renderInvoicePdf } from "@/lib/pdf/invoice-pdf";
-import { organizationSchema, customerSchema, createInvoiceSchema, TaxScheme } from "@/schemas";
+import { organizationSchema, customerSchema, createInvoiceSchema, createDocumentSchema, TaxScheme } from "@/schemas";
 
 // ── Helfer ────────────────────────────────────────────────────────────────
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -70,6 +73,44 @@ async function resolveInvoice(orgId: string, ref: string) {
   const inv = await dbInternal.invoice.findFirst({ where: { orgId, OR: [{ id: ref }, { number: ref }] } });
   if (!inv) throw new Error(`Keine Rechnung "${ref}" gefunden (weder als ID noch als Nummer).`);
   return inv;
+}
+
+async function resolveDocument(orgId: string, ref: string) {
+  const q = await dbInternal.quote.findFirst({ where: { orgId, OR: [{ id: ref }, { number: ref }] } });
+  if (!q) throw new Error(`Kein Dokument "${ref}" gefunden.`);
+  return q;
+}
+
+/** Wandelt MCP-Positionen (mit €/Menge oder Katalog-Verweis) in DB-Positionen um (Schema REGULAR, Kategorie S). */
+async function buildSimpleLines(
+  orgId: string,
+  inputLines: { description: string; quantity: number; unitPriceEuro?: number; productName?: string; unit?: string; taxRatePercent?: number }[],
+) {
+  const products = await dbInternal.product.findMany({ where: { orgId, isArchived: false } });
+  return inputLines.map((l, idx) => {
+    let unitPriceEuro = l.unitPriceEuro;
+    let unit = l.unit;
+    let taxRate = l.taxRatePercent;
+    let description = l.description;
+    if (unitPriceEuro == null && l.productName) {
+      const p = products.find((x) => x.name.toLowerCase() === l.productName!.toLowerCase());
+      if (!p) throw new Error(`Produkt "${l.productName}" (Position ${idx + 1}) nicht gefunden.`);
+      unitPriceEuro = p.netPriceCents / 100;
+      unit = unit ?? p.unit;
+      taxRate = taxRate ?? p.taxRate;
+      description = description || p.name;
+    }
+    if (unitPriceEuro == null) throw new Error(`Position ${idx + 1} braucht unitPriceEuro oder productName.`);
+    return {
+      description,
+      quantityMilli: qtyToMilli(l.quantity),
+      unit: unit ?? "C62",
+      unitNetPriceCents: euroToCents(unitPriceEuro),
+      taxRate: taxRate ?? 19,
+      taxCategory: "S",
+      discountPermille: 0,
+    };
+  });
 }
 
 const server = new McpServer({ name: "open-invoice-germany", version: "0.1.0" });
@@ -551,6 +592,134 @@ server.registerTool(
       );
     } catch (e) {
       return fail(`Export fehlgeschlagen: ${(e as Error).message}`);
+    }
+  },
+);
+
+const docLineSchema = z.object({
+  description: z.string(),
+  quantity: z.number(),
+  unitPriceEuro: z.number().optional(),
+  productName: z.string().optional(),
+  unit: z.string().optional(),
+  taxRatePercent: z.union([z.literal(19), z.literal(7), z.literal(0)]).optional(),
+});
+
+// ── create_document ─────────────────────────────────────────────────────────
+server.registerTool(
+  "create_document",
+  {
+    title: "Angebot / Auftragsbestätigung / Proforma anlegen",
+    description:
+      "Erstellt ein Geschäftsdokument (KEIN Steuerbeleg): Angebot, Auftragsbestätigung oder Proforma-Rechnung. Kunde per Name, Positionen wie bei create_invoice. Später mit convert_document_to_invoice in eine echte Rechnung umwandelbar.",
+    inputSchema: {
+      kind: z.enum(["ANGEBOT", "AUFTRAGSBESTAETIGUNG", "PROFORMA"]),
+      customer: z.string().describe("Kundenname oder -ID"),
+      lines: z.array(docLineSchema).min(1),
+      validUntil: z.string().optional().describe("Gültig bis YYYY-MM-DD (für Angebote)"),
+      notes: z.string().optional(),
+    },
+  },
+  async (args): Promise<Result> => {
+    try {
+      const org = await requireOrg();
+      const customer = await resolveCustomer(org.id, args.customer);
+      const lines = await buildSimpleLines(org.id, args.lines);
+      const input = createDocumentSchema.parse({
+        kind: args.kind,
+        customerId: customer.id,
+        taxScheme: "REGULAR",
+        currency: "EUR",
+        validUntil: parseDateInput(args.validUntil),
+        notes: args.notes,
+        lines,
+      });
+      const doc = await createBusinessDocument(org.id, input);
+      return ok(`${args.kind} angelegt: ${doc.number} für ${customer.name} · Brutto ${formatCents(doc.grossTotalCents)}.`);
+    } catch (e) {
+      return fail(`Konnte Dokument nicht anlegen: ${(e as Error).message}`);
+    }
+  },
+);
+
+// ── list_documents ───────────────────────────────────────────────────────────
+server.registerTool(
+  "list_documents",
+  {
+    title: "Dokumente auflisten",
+    description: "Listet Angebote/Auftragsbestätigungen/Proforma (optional nach Art gefiltert).",
+    inputSchema: { kind: z.enum(["ANGEBOT", "AUFTRAGSBESTAETIGUNG", "PROFORMA"]).optional() },
+  },
+  async ({ kind }): Promise<Result> => {
+    const org = await dbInternal.organization.findFirst();
+    if (!org) return fail("Kein Unternehmen eingerichtet. Zuerst setup_company.");
+    const docs = await dbInternal.quote.findMany({
+      where: { orgId: org.id, ...(kind ? { kind } : {}) },
+      orderBy: { createdAt: "desc" },
+      include: { customer: { select: { name: true } } },
+      take: 50,
+    });
+    return ok(
+      JSON.stringify(
+        docs.map((d) => ({ id: d.id, number: d.number, kind: d.kind, customer: d.customer.name, gross: formatCents(d.grossTotalCents), status: d.status })),
+        null,
+        2,
+      ),
+    );
+  },
+);
+
+// ── convert_document_to_invoice ──────────────────────────────────────────────
+server.registerTool(
+  "convert_document_to_invoice",
+  {
+    title: "Dokument in Rechnung umwandeln",
+    description: "Wandelt ein Angebot/Auftragsbestätigung/Proforma in einen Rechnungs-Entwurf um (danach finalize_invoice).",
+    inputSchema: { document: z.string().describe("Dokument-Nummer oder -ID") },
+  },
+  async ({ document }): Promise<Result> => {
+    try {
+      const org = await requireOrg();
+      const doc = await resolveDocument(org.id, document);
+      const invoice = await convertDocumentToInvoice(doc.id);
+      return ok(`Umgewandelt: ${doc.number} → Rechnungs-Entwurf ${invoice.id}. Mit finalize_invoice festschreiben.`);
+    } catch (e) {
+      if (e instanceof ConvertError) return fail(e.message);
+      return fail(`Fehler: ${(e as Error).message}`);
+    }
+  },
+);
+
+// ── credit_invoice (Teilgutschrift) ──────────────────────────────────────────
+server.registerTool(
+  "credit_invoice",
+  {
+    title: "Teilgutschrift / Teilerstattung",
+    description:
+      "Erstellt eine Teilgutschrift zu einer festgeschriebenen Rechnung über die angegebenen Positionen (Beträge positiv angeben). Das Original bleibt erhalten. Für einen VOLL-Storno: cancel_invoice.",
+    inputSchema: {
+      invoice: z.string().describe("Rechnungs-ID oder -Nummer"),
+      lines: z.array(docLineSchema).min(1).describe("Zu erstattende Positionen"),
+      notes: z.string().optional().describe("Grund der Gutschrift"),
+    },
+  },
+  async (args): Promise<Result> => {
+    try {
+      const org = await requireOrg();
+      const inv = await resolveInvoice(org.id, args.invoice);
+      const lines = (await buildSimpleLines(org.id, args.lines)).map((l) => ({
+        description: l.description,
+        quantityMilli: l.quantityMilli,
+        unit: l.unit,
+        unitNetPriceCents: l.unitNetPriceCents,
+        taxRate: l.taxRate,
+        taxCategory: l.taxCategory,
+      }));
+      const res = await createPartialCreditNote(inv.id, { lines, notes: args.notes });
+      return ok(`Teilgutschrift ${res.creditNote.number} zu ${res.originalNumber} erstellt · Brutto ${formatCents(res.creditNote.grossTotalCents)}.`);
+    } catch (e) {
+      if (e instanceof CreditError) return fail(e.message);
+      return fail(`Fehler: ${(e as Error).message}`);
     }
   },
 );
