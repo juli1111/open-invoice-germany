@@ -11,8 +11,10 @@ import type { EInvoiceData } from "./types";
 
 type XmlNode = ReturnType<typeof create>;
 
+// XRechnung 3.0 CIUS-Kennung (BT-24). Seit XRechnung 3.0 mit neuem Namespace
+// urn:xeinkauf.de:kosit (NICHT mehr urn:xoev-de:kosit:standard) — sonst BR-DE-21.
 const XRECHNUNG_CUSTOMIZATION =
-  "urn:cen.eu:en16931:2017#compliant#urn:xoev-de:kosit:standard:xrechnung_3.0";
+  "urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0";
 const PEPPOL_PROFILE = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0";
 
 function money(cents: number): string {

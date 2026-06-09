@@ -82,13 +82,14 @@ Die Integrationstests beweisen u. a. **lückenlose, unveränderbare Nummernkreis
 
 ## E-Rechnung-Validierung
 
-- **Offizielles EN-16931-Schematron — lokal & ohne Java:**
-  ```bash
-  npm run validate:erechnung      # führt das offizielle EN-16931-UBL-Schematron via SaxonJS aus
-  ```
-  Die erzeugte XRechnung wird gegen die echten EN-16931-Geschäftsregeln (BR-/BR-CO-…) geprüft — läuft auch als **harter Gate** in der CI.
-- **Schnelle Kernregeln** zusätzlich in reinem JS (Teil von `npm test`).
-- **XRechnung-CIUS (BR-DE):** der offizielle **[KoSIT-Validator](https://github.com/itplr-kosit/validator)** (Java) prüft in der CI zusätzlich die deutschen Sonderregeln.
+```bash
+npm run validate:erechnung      # offizielle Schematron-Regeln, ohne Java
+```
+Prüft die erzeugte XRechnung gegen die **offiziellen Schematron-Regeln** in purem Node via SaxonJS:
+- **EN-16931-UBL-Schematron** (ConnectingEurope) und
+- **XRechnung-CIUS / BR-DE** (offizielle KoSIT-Konfiguration 3.0.2; benötigt `unzip`).
+
+Das ist im Kern dieselbe Schematron-Prüfung wie der **[KoSIT-Validator](https://github.com/itplr-kosit/validator)** — und läuft als **harter Gate in der CI**. Der KoSIT-Validator (Java) läuft dort zusätzlich als unabhängiger Cross-Check (deckt auch die vorgelagerte XSD-Prüfung ab). Schnelle Kernregeln sind Teil von `npm test`.
 
 ## Mitmachen
 

@@ -70,4 +70,4 @@ Claude ruft im Hintergrund die passenden Tools auf (`setup_company` → `upsert_
 
 ## 5. Grenzen
 
-Jede exportierte XRechnung besteht das **offizielle EN-16931-Schematron** (`npm run validate:erechnung`, via SaxonJS, ohne Java; in CI hart geprüft). XRechnung-CIUS-Sonderregeln zusätzlich per KoSIT in CI. Siehe [LIMITATIONEN.md](LIMITATIONEN.md) — u. a. keine eingebaute Auth (lokal/Solo betreiben), XRechnung statt ZUGFeRD-Hybrid. Keine Steuerberatung — [COMPLIANCE.md](../COMPLIANCE.md).
+Jede exportierte XRechnung besteht die **offiziellen Schematron-Regeln** (EN-16931 + XRechnung-CIUS/BR-DE) — `npm run validate:erechnung`, via SaxonJS, ohne Java; in CI hart geprüft. Siehe [LIMITATIONEN.md](LIMITATIONEN.md) — u. a. keine eingebaute Auth (lokal/Solo betreiben), XRechnung statt ZUGFeRD-Hybrid. Keine Steuerberatung — [COMPLIANCE.md](../COMPLIANCE.md).

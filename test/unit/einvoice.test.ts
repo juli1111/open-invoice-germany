@@ -50,7 +50,8 @@ const data: EInvoiceData = {
 describe("XRechnung / EN 16931", () => {
   it("erzeugt wohlgeformtes UBL mit Pflicht-Headern", () => {
     const xml = buildXRechnungUBL(data);
-    expect(xml).toContain("xrechnung_3.0");
+    // CustomizationID muss den XRechnung-3.0-Namespace (xeinkauf.de) tragen — sonst BR-DE-21.
+    expect(xml).toContain("urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0");
     expect(xml).toContain("<cbc:ID>RE-2026-0001</cbc:ID>");
     expect(xml).toContain("<cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>");
     expect(xml).toContain("DE123456789");

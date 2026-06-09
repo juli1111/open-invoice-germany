@@ -38,7 +38,7 @@ jobs:
     env:
       VALIDATOR_VERSION: "1.5.0"
       CONFIG_RELEASE: "release-2024-06-20"
-      CONFIG_FILE: "validator-configuration-xrechnung_3.0.1_2024-06-20"
+      CONFIG_FILE: "validator-configuration-xrechnung_3.0.2_2024-06-20"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
