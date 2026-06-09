@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { buildXRechnungUBL } from "@/lib/einvoice/xrechnung";
 import { validateXRechnung } from "@/lib/einvoice/en16931-core";
+import { buildFacturXCII } from "@/lib/einvoice/cii";
+import { renderZugferdPdf } from "@/lib/einvoice/zugferd";
 import type { EInvoiceData } from "@/lib/einvoice/types";
 
 const data: EInvoiceData = {
@@ -119,5 +121,21 @@ describe("XRechnung / EN 16931", () => {
     expect(xml).toContain("RE-2026-0001"); // BillingReference auf Original
     expect(xml).toContain('<cbc:PayableAmount currencyID="EUR">297.50</cbc:PayableAmount>'); // positiv
     expect(validateXRechnung(credit, xml).errors).toEqual([]);
+  });
+});
+
+describe("ZUGFeRD / Factur-X (CII)", () => {
+  it("erzeugt EN-16931-CII mit korrektem Profil + TypeCode", () => {
+    const xml = buildFacturXCII(data);
+    expect(xml).toContain("<rsm:CrossIndustryInvoice");
+    expect(xml).toContain("urn:cen.eu:en16931:2017");
+    expect(xml).toContain("<ram:TypeCode>380</ram:TypeCode>");
+    expect(xml).toContain("DE123456789"); // Verkäufer-USt-IdNr.
+  });
+
+  it("bettet die factur-x.xml in ein gültiges PDF ein", async () => {
+    const pdf = await renderZugferdPdf(data);
+    expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+    expect(pdf.toString("latin1")).toContain("factur-x.xml");
   });
 });

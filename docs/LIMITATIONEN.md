@@ -7,7 +7,7 @@ Damit niemand böse Überraschungen erlebt: Das hier ist (noch) **nicht** abgede
 - **Single-Tenant.** Das Datenmodell trägt `orgId`, die App nutzt aber eine aktive Organisation. Schreibpfade (Stammdaten) sind org-gescoped; eine vollständige Mehrmandanten-Trennung (inkl. Lese-Pfade, Postgres-RLS) ist Roadmap.
 
 ## E-Rechnung
-- **Nur XRechnung-XML + PDF.** ZUGFeRD/Factur-X (PDF/A-3 mit eingebettetem XML) ist über den optionalen Mustang-Sidecar vorgesehen, aber noch nicht verdrahtet.
+- **ZUGFeRD/Factur-X** wird erzeugt: Hybrid-PDF mit eingebettetem **EN-16931-CII-XML** (offiziell Schematron-validiert, `factur-x.xml`, AFRelationship). Einschränkung: der PDF-Container ist **kein striktes PDF/A-3** (pdf-lib setzt keine PDF/A-3-Konformität durch) — für strenge PDF/A-3-Validierung den Mustang-Sidecar/veraPDF nutzen. Der eingebettete XML-Teil ist führend.
 - **Validierung:** Die erzeugte XRechnung besteht die **offiziellen Schematron-Regeln** — EN-16931-UBL **und** XRechnung-CIUS (BR-DE) — lokal & in CI via SaxonJS (`npm run validate:erechnung`, ohne Java). Der KoSIT-Validator (Java) läuft als unabhängiger Cross-Check in der CI. Die vorgelagerte **XSD-Prüfung** deckt nur der KoSIT-Lauf ab (SaxonJS prüft „nur" Schematron — in der Praxis aber der entscheidende Teil).
 - **Storno/Gutschrift als E-Rechnung:** wird als korrektes UBL-`CreditNote`-Dokument (Typ 381, positive Beträge) mit `BillingReference` (BG-3, Bezug zur Originalrechnung, § 31 Abs. 5 UStDV) erzeugt. ✓
 - **EndpointID** wird als E-Mail (`EM`) ausgegeben. Leitweg-/Peppol-Schemacodes (EAS) werden noch nicht differenziert.

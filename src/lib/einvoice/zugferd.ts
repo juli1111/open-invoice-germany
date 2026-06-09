@@ -18,7 +18,8 @@ export async function embedFacturX(pdfBytes: Uint8Array, ciiXml: string): Promis
     description: "Factur-X / ZUGFeRD — strukturierte Rechnung (EN 16931)",
     afRelationship: AFRelationship.Alternative,
   });
-  return pdfDoc.save();
+  // Ohne Object-Streams: bessere Lesbarkeit/Kompatibilität für E-Rechnungs-Tools.
+  return pdfDoc.save({ useObjectStreams: false });
 }
 
 export async function renderZugferdPdf(data: EInvoiceData): Promise<Buffer> {
