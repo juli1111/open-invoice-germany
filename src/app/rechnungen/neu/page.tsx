@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getActiveOrg } from "@/lib/org";
 import { NewInvoiceForm } from "@/components/NewInvoiceForm";
+import { NeedOrgNotice } from "@/components/NeedOrgNotice";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,7 @@ export default async function NewInvoicePage() {
     const org = await getActiveOrg();
     orgId = org.id;
   } catch {
-    return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-        Kein Unternehmen eingerichtet. Bitte zuerst Stammdaten anlegen — z. B. mit{" "}
-        <code className="font-mono">npm run db:seed</code>.
-      </div>
-    );
+    return <NeedOrgNotice />;
   }
 
   const [customers, products] = await Promise.all([
@@ -31,7 +27,11 @@ export default async function NewInvoicePage() {
   if (customers.length === 0) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-        Noch keine Kunden angelegt. Lege zuerst einen Kunden an (oder führe <code className="font-mono">npm run db:seed</code> aus).
+        Noch keine Kunden angelegt. Lege zuerst einen{" "}
+        <Link href="/kunden/neu" className="font-medium underline">
+          Kunden an
+        </Link>
+        .
       </div>
     );
   }

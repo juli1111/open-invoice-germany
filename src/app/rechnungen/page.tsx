@@ -28,7 +28,10 @@ export default async function RechnungenPage() {
 
       {invoices.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-          Noch keine Rechnungen. Lege eine an oder führe <code className="font-mono">npm run db:seed</code> aus.
+          Noch keine Rechnungen.{" "}
+          <Link href="/rechnungen/neu" className="font-medium text-indigo-600 hover:underline">
+            Lege deine erste Rechnung an.
+          </Link>
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">

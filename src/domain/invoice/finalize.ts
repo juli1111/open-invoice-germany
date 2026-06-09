@@ -75,7 +75,25 @@ export async function finalizeWithinTx(
     invoice.lines.map((l) => ({ lineNetCents: l.lineNetCents, taxRate: l.taxRate, taxCategory: l.taxCategory })),
   );
 
-  // 3) Nummer vergeben
+  // 3) Atomarer Status-Claim: nur wenn noch DRAFT. Verhindert unter Nebenläufigkeit
+  //    (Postgres READ COMMITTED) doppelte Festschreibung + doppelten Nummern-Verbrauch.
+  const claim = await tx.invoice.updateMany({
+    where: { id: invoiceId, status: "DRAFT" },
+    data: {
+      status: "FINALIZED",
+      finalizedAt: now,
+      issueDate: invoice.issueDate ?? now,
+      netTotalCents: totals.netTotalCents,
+      taxTotalCents: totals.taxTotalCents,
+      grossTotalCents: totals.grossTotalCents,
+      taxBreakdownJson: JSON.stringify(totals.breakdown),
+    },
+  });
+  if (claim.count === 0) {
+    throw new FinalizeError("Rechnung wurde zwischenzeitlich bereits festgeschrieben.");
+  }
+
+  // 4) Nummer ERST nach gewonnenem Claim vergeben -> der Verlierer verbraucht keine Nummer (kein Loch).
   const docType = invoice.type === "CREDIT_NOTE" ? "CREDIT_NOTE" : "INVOICE";
   const year = now.getFullYear();
   const range = await tx.numberRange.upsert({
@@ -90,22 +108,7 @@ export async function finalizeWithinTx(
     year,
     month: now.getMonth() + 1,
   });
-
-  // 4) Festschreiben
-  const updated = await tx.invoice.update({
-    where: { id: invoiceId },
-    data: {
-      status: "FINALIZED",
-      number,
-      finalizedAt: now,
-      issueDate: invoice.issueDate ?? now,
-      netTotalCents: totals.netTotalCents,
-      taxTotalCents: totals.taxTotalCents,
-      grossTotalCents: totals.grossTotalCents,
-      taxBreakdownJson: JSON.stringify(totals.breakdown),
-    },
-    include: { lines: { orderBy: { position: "asc" } }, org: true, customer: true },
-  });
+  await tx.invoice.update({ where: { id: invoiceId }, data: { number } });
 
   // 5) Audit
   await appendChangeLog(tx, {
@@ -118,7 +121,11 @@ export async function finalizeWithinTx(
     diff: { number, status: "FINALIZED", grossTotalCents: totals.grossTotalCents },
   });
 
-  return updated;
+  const result = await tx.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { lines: { orderBy: { position: "asc" } }, org: true, customer: true },
+  });
+  return result!;
 }
 
 export async function finalizeInvoice(invoiceId: string, opts: FinalizeOptions = {}) {

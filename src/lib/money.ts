@@ -52,9 +52,11 @@ export function formatQuantity(quantityMilli: number, locale = "de-DE"): string 
   return new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(quantityMilli / MILLI);
 }
 
-/** Parst eine Mengeneingabe ("2,5") nach Milliunits. */
+/** Parst eine Mengeneingabe ("2,5" oder "2.5") nach Milliunits. */
 export function parseQuantityToMilli(input: string): number {
-  const normalized = input.trim().replace(/\./g, "").replace(",", ".");
+  const cleaned = input.trim().replace(/\s/g, "");
+  // Tausenderpunkte nur entfernen, wenn ein Komma als Dezimaltrenner vorhanden ist.
+  const normalized = cleaned.includes(",") ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned;
   const value = Number(normalized);
   if (!Number.isFinite(value)) throw new Error(`Ungültige Menge: ${input}`);
   return roundHalfUp(value * MILLI);

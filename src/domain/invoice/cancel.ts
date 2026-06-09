@@ -52,6 +52,7 @@ export async function cancelInvoice(invoiceId: string, opts: CancelOptions = {})
         notes: `Storno zu Rechnung ${original.number}.${original.notes ? " " + original.notes : ""}`,
         paymentTerms: original.paymentTerms,
         correctsInvoiceId: original.id,
+        // Betragsspiegelbild: negierte Beträge, damit Original + Storno = 0 ergibt.
         lines: {
           create: original.lines.map((l) => ({
             position: l.position,
@@ -59,11 +60,11 @@ export async function cancelInvoice(invoiceId: string, opts: CancelOptions = {})
             description: l.description,
             quantityMilli: l.quantityMilli,
             unit: l.unit,
-            unitNetPriceCents: l.unitNetPriceCents,
+            unitNetPriceCents: -l.unitNetPriceCents,
             taxRate: l.taxRate,
             taxCategory: l.taxCategory,
             discountPermille: l.discountPermille,
-            lineNetCents: l.lineNetCents,
+            lineNetCents: -l.lineNetCents,
           })),
         },
       },

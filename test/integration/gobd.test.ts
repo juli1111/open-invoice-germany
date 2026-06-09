@@ -98,6 +98,9 @@ describe("GoBD: Nummernkreis + Unveränderbarkeit", () => {
 
     expect(res.creditNote.type).toBe("CREDIT_NOTE");
     expect(res.creditNote.number).toMatch(/^GS-2026-\d{4}$/);
+    // Betragsspiegelbild: Original + Storno = 0 (Gutschrift ist negativ)
+    expect(res.creditNote.grossTotalCents).toBe(-fin.grossTotalCents);
+    expect(fin.grossTotalCents + res.creditNote.grossTotalCents).toBe(0);
 
     const original = await prisma.invoice.findUnique({ where: { id: fin.id }, include: { lines: true } });
     expect(original!.status).toBe("CANCELLED");

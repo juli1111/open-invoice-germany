@@ -27,9 +27,11 @@ describe("money", () => {
     expect(parseEuroToCents("19,99 €")).toBe(1999);
   });
 
-  it("parseQuantityToMilli", () => {
+  it("parseQuantityToMilli akzeptiert beide Dezimalformate", () => {
     expect(parseQuantityToMilli("2,5")).toBe(2500);
+    expect(parseQuantityToMilli("2.5")).toBe(2500); // Dezimalpunkt darf nicht als Tausender gelesen werden
     expect(parseQuantityToMilli("1")).toBe(1000);
+    expect(parseQuantityToMilli("1.234,5")).toBe(1234500);
   });
 
   it("formatCents als de-DE/EUR", () => {

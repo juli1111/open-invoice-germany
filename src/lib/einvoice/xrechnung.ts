@@ -25,7 +25,12 @@ function quantity(milli: number): string {
 }
 
 function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  // Lokale Y/M/D-Komponenten — NICHT toISOString() (würde bei lokaler Mitternacht
+  // in UTC um einen Tag zurückspringen und ein falsches Ausstellungs-/Leistungsdatum erzeugen).
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function invoiceTypeCode(type: string): string {
@@ -72,11 +77,18 @@ function appendParty(parent: XmlNode, party: EInvoiceData["seller"], isSeller: b
   postal.ele("cbc:PostalZone").txt(party.postalCode).up();
   postal.ele("cac:Country").ele("cbc:IdentificationCode").txt(party.countryCode).up().up();
 
-  // BG-4/BG-7 — USt-IdNr. (PartyTaxScheme)
+  // BT-31/BT-48 — USt-IdNr. (PartyTaxScheme VAT)
   if (party.vatId) {
     const pts = p.ele("cac:PartyTaxScheme");
     pts.ele("cbc:CompanyID").txt(party.vatId).up();
     pts.ele("cac:TaxScheme").ele("cbc:ID").txt("VAT").up().up();
+  }
+  // BT-32 — Steuernummer (PartyTaxScheme FC). Wichtig für Kleinunternehmer ohne
+  // USt-IdNr.: ohne BT-31 oder BT-32 ist die XRechnung KoSIT-invalid (BR-CO-26/BR-DE).
+  if (isSeller && party.taxNumber) {
+    const pts = p.ele("cac:PartyTaxScheme");
+    pts.ele("cbc:CompanyID").txt(party.taxNumber).up();
+    pts.ele("cac:TaxScheme").ele("cbc:ID").txt("FC").up().up();
   }
 
   // Registrierter Name (BT-27 / BT-44)
@@ -113,17 +125,14 @@ export function buildXRechnungUBL(data: EInvoiceData): string {
   // XRechnung: BT-10 Buyer reference Pflicht (Leitweg-ID im B2G); Fallback Belegnummer
   root.ele("cbc:BuyerReference").txt(data.buyerReference || data.number).up();
 
-  if (data.deliveryDate) {
-    root
-      .ele("cac:Delivery")
-      .ele("cbc:ActualDeliveryDate")
-      .txt(isoDate(data.deliveryDate))
-      .up()
-      .up();
-  }
-
   appendParty(root.ele("cac:AccountingSupplierParty"), data.seller, true);
   appendParty(root.ele("cac:AccountingCustomerParty"), data.buyer, false);
+
+  // BG-13 Lieferinformationen — MUSS in der UBL-Reihenfolge NACH den Parteien und
+  // VOR PaymentMeans stehen (sonst XSD-fatal -> KoSIT lehnt das Dokument ab).
+  if (data.deliveryDate) {
+    root.ele("cac:Delivery").ele("cbc:ActualDeliveryDate").txt(isoDate(data.deliveryDate)).up().up();
+  }
 
   // Zahlungsweg (IBAN)
   if (data.iban) {

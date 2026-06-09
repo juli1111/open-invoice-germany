@@ -20,9 +20,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </span>
               OpenInvoice <span className="text-slate-400">DE</span>
             </Link>
-            <nav className="flex items-center gap-5 text-sm">
+            <nav className="flex items-center gap-4 text-sm sm:gap-5">
               <Link href="/rechnungen" className="text-slate-600 hover:text-slate-900">
                 Rechnungen
+              </Link>
+              <Link href="/kunden" className="hidden text-slate-600 hover:text-slate-900 sm:inline">
+                Kunden
+              </Link>
+              <Link href="/produkte" className="hidden text-slate-600 hover:text-slate-900 sm:inline">
+                Produkte
+              </Link>
+              <Link href="/einstellungen" className="text-slate-600 hover:text-slate-900">
+                Einstellungen
               </Link>
               <Link
                 href="/rechnungen/neu"

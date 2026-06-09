@@ -269,6 +269,9 @@ model ChangeLog {
   prevHash String   @default("")
   hash     String
 
+  // Verhindert ein stilles Forken der Hash-Chain bei nebenläufigen Schreibern:
+  // ein zweiter Eintrag mit gleichem Vorgänger pro Org schlägt laut fehl statt zu korrumpieren.
+  @@unique([orgId, prevHash])
   @@index([orgId])
   @@index([entity, entityId])
 }

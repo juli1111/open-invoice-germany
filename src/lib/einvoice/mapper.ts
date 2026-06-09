@@ -45,6 +45,7 @@ interface MapInput {
     countryCode: string;
     vatId: string | null;
     email: string | null;
+    leitwegId: string | null;
   };
   lines: Array<{
     id: string;
@@ -68,7 +69,8 @@ export function buildEInvoiceData(invoice: MapInput): EInvoiceData {
     dueDate: invoice.dueDate,
     deliveryDate: invoice.deliveryDate,
     currency: invoice.currency,
-    buyerReference: invoice.buyerReference,
+    // B2G: Leitweg-ID des Kunden als Buyer reference (BT-10), sonst explizit gesetzter Wert.
+    buyerReference: invoice.buyerReference ?? invoice.customer.leitwegId,
     paymentTerms: invoice.paymentTerms,
     notes: invoice.notes,
     seller: {

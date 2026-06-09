@@ -17,6 +17,7 @@ export async function POST(req: Request) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Validierung fehlgeschlagen", issues: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    console.error("POST /api/invoices:", e);
+    return NextResponse.json({ error: "Rechnung konnte nicht angelegt werden. Bitte Eingaben prüfen." }, { status: 400 });
   }
 }

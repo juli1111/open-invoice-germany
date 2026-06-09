@@ -7,7 +7,7 @@ import { dbInternal } from "@/lib/db";
 export async function getActiveOrg() {
   const org = await dbInternal.organization.findFirst({ orderBy: { createdAt: "asc" } });
   if (!org) {
-    throw new Error("Kein Unternehmen eingerichtet. Bitte zuerst Stammdaten anlegen (npm run db:seed).");
+    throw new Error("Kein Unternehmen eingerichtet. Bitte zuerst unter Einstellungen die Stammdaten anlegen.");
   }
   return org;
 }

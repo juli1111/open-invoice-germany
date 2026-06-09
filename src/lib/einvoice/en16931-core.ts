@@ -43,6 +43,10 @@ export function validateXRechnung(data: EInvoiceData, xml: string): ValidationRe
   if (!data.seller.name) errors.push("BR-06: Name des Verkäufers fehlt.");
   if (!data.seller.addressLine1 || !data.seller.city || !data.seller.postalCode || !data.seller.countryCode)
     errors.push("BR-08: Postanschrift des Verkäufers unvollständig.");
+  if (!data.seller.vatId && !data.seller.taxNumber)
+    errors.push("BR-CO-26: Verkäufer benötigt USt-IdNr. (BT-31) oder Steuernummer (BT-32).");
+  if (!(data.buyerReference || data.number))
+    errors.push("BR-DE-15: Käuferreferenz (BT-10) erforderlich.");
   if (!data.buyer.name) errors.push("BR-07: Name des Käufers fehlt.");
   if (!data.buyer.addressLine1 || !data.buyer.city || !data.buyer.postalCode || !data.buyer.countryCode)
     errors.push("BR-10: Postanschrift des Käufers unvollständig.");

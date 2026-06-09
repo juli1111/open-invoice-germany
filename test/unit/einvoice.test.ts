@@ -71,4 +71,28 @@ describe("XRechnung / EN 16931", () => {
     expect(result.valid).toBe(false);
     expect(result.errors.join(" ")).toMatch(/BR-CO-15/);
   });
+
+  it("emittiert Steuernummer (BT-32 / FC) für Verkäufer ohne USt-IdNr. (Kleinunternehmer)", () => {
+    const ku: EInvoiceData = { ...data, seller: { ...data.seller, vatId: null, taxNumber: "33/123/45678" } };
+    const xml = buildXRechnungUBL(ku);
+    expect(xml).toContain("<cbc:ID>FC</cbc:ID>");
+    expect(xml).toContain("33/123/45678");
+    expect(validateXRechnung(ku, xml).errors).toEqual([]);
+  });
+
+  it("erkennt Verkäufer ohne jegliche Steuer-ID (BR-CO-26)", () => {
+    const bad: EInvoiceData = { ...data, seller: { ...data.seller, vatId: null, taxNumber: null } };
+    const result = validateXRechnung(bad, buildXRechnungUBL(bad));
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/BR-CO-26/);
+  });
+
+  it("platziert cac:Delivery nach den Parteien und vor TaxTotal (UBL-Reihenfolge)", () => {
+    const xml = buildXRechnungUBL(data);
+    const customerIdx = xml.indexOf("<cac:AccountingCustomerParty>");
+    const deliveryIdx = xml.indexOf("<cac:Delivery>");
+    const taxTotalIdx = xml.indexOf("<cac:TaxTotal>");
+    expect(deliveryIdx).toBeGreaterThan(customerIdx);
+    expect(deliveryIdx).toBeLessThan(taxTotalIdx);
+  });
 });

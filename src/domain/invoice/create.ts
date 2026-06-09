@@ -39,6 +39,10 @@ export async function createDraftInvoice(
   );
 
   return dbInternal.$transaction(async (tx) => {
+    // Kunde muss zur Organisation gehören (kein Cross-Tenant-Bezug).
+    const customer = await tx.customer.findFirst({ where: { id: input.customerId, orgId }, select: { id: true } });
+    if (!customer) throw new Error("Kunde nicht gefunden.");
+
     const invoice = await tx.invoice.create({
       data: {
         orgId,

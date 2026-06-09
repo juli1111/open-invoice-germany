@@ -28,10 +28,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return Response.json({ error: "EN-16931-Kernvalidierung fehlgeschlagen", issues: report.errors }, { status: 422 });
   }
 
+  const safe = (invoice.number ?? "rechnung").replace(/[^A-Za-z0-9._-]/g, "_"); // Header-Injection vermeiden
   return new Response(xml, {
     headers: {
       "content-type": "application/xml; charset=utf-8",
-      "content-disposition": `attachment; filename="${invoice.number}.xml"`,
+      "content-disposition": `attachment; filename="${safe}.xml"`,
     },
   });
 }

@@ -14,10 +14,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const pdf = await renderInvoicePdf(buildEInvoiceData(invoice));
   const name = invoice.number ?? `entwurf-${invoice.id.slice(0, 8)}`;
+  const safe = name.replace(/[^A-Za-z0-9._-]/g, "_"); // Header-Injection vermeiden
   return new Response(new Uint8Array(pdf), {
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `inline; filename="${name}.pdf"`,
+      "content-disposition": `inline; filename="${safe}.pdf"`,
     },
   });
 }
