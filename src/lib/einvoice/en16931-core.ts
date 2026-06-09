@@ -83,10 +83,12 @@ export function validateXRechnung(data: EInvoiceData, xml: string): ValidationRe
   if (data.payableCents !== expectedPayable)
     errors.push("BR-CO-16: Zahlbetrag ≠ Bruttobetrag − Anzahlung.");
 
-  // XML-Querprüfung: bindet die Validierung an die tatsächliche Ausgabe
+  // XML-Querprüfung: bindet die Validierung an die tatsächliche Ausgabe.
+  // Gutschriften (CreditNote) werden mit positiven Beträgen ausgegeben.
+  const payableInXmlExpected = data.type === "CREDIT_NOTE" ? Math.abs(data.payableCents) : data.payableCents;
   const payableInXml = extractAmount(xml, "PayableAmount");
-  if (payableInXml !== money(data.payableCents))
-    errors.push(`XML: PayableAmount (${payableInXml}) ≠ erwartet ${money(data.payableCents)}.`);
+  if (payableInXml !== money(payableInXmlExpected))
+    errors.push(`XML: PayableAmount (${payableInXml}) ≠ erwartet ${money(payableInXmlExpected)}.`);
 
   return { valid: errors.length === 0, errors };
 }

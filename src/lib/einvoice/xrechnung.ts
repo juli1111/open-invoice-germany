@@ -108,8 +108,18 @@ function appendParty(parent: XmlNode, party: EInvoiceData["seller"], isSeller: b
 
 export function buildXRechnungUBL(data: EInvoiceData): string {
   const cur = data.currency;
-  const root = create({ version: "1.0", encoding: "UTF-8" }).ele("Invoice", {
-    xmlns: "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
+  // Gutschriften (Storno) werden als UBL CreditNote-Dokument mit POSITIVEN Beträgen
+  // erzeugt (EN-16931-Konvention); intern sind die Beträge negativ gespeichert.
+  const isCredit = data.type === "CREDIT_NOTE";
+  const rootName = isCredit ? "CreditNote" : "Invoice";
+  const rootNs = isCredit
+    ? "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2"
+    : "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2";
+  const amt = (cents: number) => money(isCredit ? Math.abs(cents) : cents);
+  const qty = (milli: number) => quantity(Math.abs(milli));
+
+  const root = create({ version: "1.0", encoding: "UTF-8" }).ele(rootName, {
+    xmlns: rootNs,
     "xmlns:cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
     "xmlns:cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
   });
@@ -119,11 +129,19 @@ export function buildXRechnungUBL(data: EInvoiceData): string {
   root.ele("cbc:ID").txt(data.number).up();
   root.ele("cbc:IssueDate").txt(isoDate(data.issueDate)).up();
   if (data.dueDate) root.ele("cbc:DueDate").txt(isoDate(data.dueDate)).up();
-  root.ele("cbc:InvoiceTypeCode").txt(invoiceTypeCode(data.type)).up();
+  root.ele(isCredit ? "cbc:CreditNoteTypeCode" : "cbc:InvoiceTypeCode").txt(invoiceTypeCode(data.type)).up();
   if (data.notes) root.ele("cbc:Note").txt(data.notes).up();
   root.ele("cbc:DocumentCurrencyCode").txt(cur).up();
   // XRechnung: BT-10 Buyer reference Pflicht (Leitweg-ID im B2G); Fallback Belegnummer
   root.ele("cbc:BuyerReference").txt(data.buyerReference || data.number).up();
+
+  // BG-3 — Bezug zur Originalrechnung (Gutschrift/Korrektur, § 31 Abs. 5 UStDV)
+  if (data.precedingInvoiceNumber) {
+    const idr = root.ele("cac:BillingReference").ele("cac:InvoiceDocumentReference");
+    idr.ele("cbc:ID").txt(data.precedingInvoiceNumber).up();
+    if (data.precedingInvoiceDate) idr.ele("cbc:IssueDate").txt(isoDate(data.precedingInvoiceDate)).up();
+    idr.up().up();
+  }
 
   appendParty(root.ele("cac:AccountingSupplierParty"), data.seller, true);
   appendParty(root.ele("cac:AccountingCustomerParty"), data.buyer, false);
@@ -151,11 +169,11 @@ export function buildXRechnungUBL(data: EInvoiceData): string {
 
   // BG-22/BG-23 — Steuersummen
   const taxTotal = root.ele("cac:TaxTotal");
-  taxTotal.ele("cbc:TaxAmount", { currencyID: cur }).txt(money(data.taxTotalCents)).up();
+  taxTotal.ele("cbc:TaxAmount", { currencyID: cur }).txt(amt(data.taxTotalCents)).up();
   for (const sub of data.taxSubtotals) {
     const st = taxTotal.ele("cac:TaxSubtotal");
-    st.ele("cbc:TaxableAmount", { currencyID: cur }).txt(money(sub.netCents)).up();
-    st.ele("cbc:TaxAmount", { currencyID: cur }).txt(money(sub.taxCents)).up();
+    st.ele("cbc:TaxableAmount", { currencyID: cur }).txt(amt(sub.netCents)).up();
+    st.ele("cbc:TaxAmount", { currencyID: cur }).txt(amt(sub.taxCents)).up();
     const cat = st.ele("cac:TaxCategory");
     cat.ele("cbc:ID").txt(sub.taxCategory).up();
     cat.ele("cbc:Percent").txt(String(sub.taxRate)).up();
@@ -169,19 +187,21 @@ export function buildXRechnungUBL(data: EInvoiceData): string {
 
   // BG-22 — Gesamtsummen
   const mon = root.ele("cac:LegalMonetaryTotal");
-  mon.ele("cbc:LineExtensionAmount", { currencyID: cur }).txt(money(data.netTotalCents)).up();
-  mon.ele("cbc:TaxExclusiveAmount", { currencyID: cur }).txt(money(data.netTotalCents)).up();
-  mon.ele("cbc:TaxInclusiveAmount", { currencyID: cur }).txt(money(data.grossTotalCents)).up();
-  if (data.paidCents) mon.ele("cbc:PrepaidAmount", { currencyID: cur }).txt(money(data.paidCents)).up();
-  mon.ele("cbc:PayableAmount", { currencyID: cur }).txt(money(data.payableCents)).up();
+  mon.ele("cbc:LineExtensionAmount", { currencyID: cur }).txt(amt(data.netTotalCents)).up();
+  mon.ele("cbc:TaxExclusiveAmount", { currencyID: cur }).txt(amt(data.netTotalCents)).up();
+  mon.ele("cbc:TaxInclusiveAmount", { currencyID: cur }).txt(amt(data.grossTotalCents)).up();
+  if (data.paidCents) mon.ele("cbc:PrepaidAmount", { currencyID: cur }).txt(amt(data.paidCents)).up();
+  mon.ele("cbc:PayableAmount", { currencyID: cur }).txt(amt(data.payableCents)).up();
   mon.up();
 
-  // BG-25 — Rechnungspositionen
+  // BG-25 — Positionen (Invoice- bzw. CreditNote-Zeilen)
+  const lineTag = isCredit ? "cac:CreditNoteLine" : "cac:InvoiceLine";
+  const qtyTag = isCredit ? "cbc:CreditedQuantity" : "cbc:InvoicedQuantity";
   data.lines.forEach((line, index) => {
-    const il = root.ele("cac:InvoiceLine");
+    const il = root.ele(lineTag);
     il.ele("cbc:ID").txt(String(index + 1)).up();
-    il.ele("cbc:InvoicedQuantity", { unitCode: line.unit }).txt(quantity(line.quantityMilli)).up();
-    il.ele("cbc:LineExtensionAmount", { currencyID: cur }).txt(money(line.lineNetCents)).up();
+    il.ele(qtyTag, { unitCode: line.unit }).txt(qty(line.quantityMilli)).up();
+    il.ele("cbc:LineExtensionAmount", { currencyID: cur }).txt(amt(line.lineNetCents)).up();
 
     const item = il.ele("cac:Item");
     item.ele("cbc:Name").txt(line.description).up();
@@ -192,7 +212,7 @@ export function buildXRechnungUBL(data: EInvoiceData): string {
     ctc.up();
     item.up();
 
-    il.ele("cac:Price").ele("cbc:PriceAmount", { currencyID: cur }).txt(money(line.unitNetPriceCents)).up().up();
+    il.ele("cac:Price").ele("cbc:PriceAmount", { currencyID: cur }).txt(amt(line.unitNetPriceCents)).up().up();
     il.up();
   });
 

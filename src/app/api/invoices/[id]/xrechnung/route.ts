@@ -1,5 +1,4 @@
-import { prisma } from "@/lib/db";
-import { buildEInvoiceData } from "@/lib/einvoice/mapper";
+import { loadEInvoiceData } from "@/lib/einvoice/load";
 import { buildXRechnungUBL } from "@/lib/einvoice/xrechnung";
 import { validateXRechnung } from "@/lib/einvoice/en16931-core";
 
@@ -7,15 +6,12 @@ export const runtime = "nodejs";
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const invoice = await prisma.invoice.findUnique({
-    where: { id },
-    include: { lines: { orderBy: { position: "asc" } }, org: true, customer: true },
-  });
-  if (!invoice) return new Response("Rechnung nicht gefunden", { status: 404 });
-  if (invoice.status === "DRAFT")
+  const loaded = await loadEInvoiceData(id);
+  if (!loaded) return new Response("Rechnung nicht gefunden", { status: 404 });
+  if (loaded.invoice.status === "DRAFT")
     return new Response("Entwürfe können nicht als E-Rechnung exportiert werden. Bitte zuerst festschreiben.", { status: 422 });
 
-  const data = buildEInvoiceData(invoice);
+  const { data } = loaded;
   const xml = buildXRechnungUBL(data);
 
   // Selbstkontrolle: Kernregeln vor Auslieferung prüfen (?validate=1 -> JSON-Report)
@@ -28,7 +24,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return Response.json({ error: "EN-16931-Kernvalidierung fehlgeschlagen", issues: report.errors }, { status: 422 });
   }
 
-  const safe = (invoice.number ?? "rechnung").replace(/[^A-Za-z0-9._-]/g, "_"); // Header-Injection vermeiden
+  const safe = (loaded.invoice.number ?? "rechnung").replace(/[^A-Za-z0-9._-]/g, "_"); // Header-Injection vermeiden
   return new Response(xml, {
     headers: {
       "content-type": "application/xml; charset=utf-8",

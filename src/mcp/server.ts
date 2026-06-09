@@ -25,7 +25,7 @@ import { SCHEME_NOTICE } from "@/domain/invoice/mandatory";
 import { createDraftInvoice } from "@/domain/invoice/create";
 import { finalizeInvoice, FinalizeError } from "@/domain/invoice/finalize";
 import { cancelInvoice, CancelError } from "@/domain/invoice/cancel";
-import { buildEInvoiceData } from "@/lib/einvoice/mapper";
+import { loadEInvoiceData } from "@/lib/einvoice/load";
 import { buildXRechnungUBL } from "@/lib/einvoice/xrechnung";
 import { validateXRechnung } from "@/lib/einvoice/en16931-core";
 import { renderInvoicePdf } from "@/lib/pdf/invoice-pdf";
@@ -510,15 +510,13 @@ server.registerTool(
     try {
       const org = await requireOrg();
       const ref = await resolveInvoice(org.id, invoice);
-      const inv = await dbInternal.invoice.findUnique({
-        where: { id: ref.id },
-        include: { lines: { orderBy: { position: "asc" } }, org: true, customer: true },
-      });
-      if (!inv) return fail("Nicht gefunden.");
+      const loaded = await loadEInvoiceData(ref.id);
+      if (!loaded) return fail("Nicht gefunden.");
+      const inv = loaded.invoice;
+      const data = loaded.data;
       const dir = outputDir ? path.resolve(outputDir) : path.join(PROJECT_ROOT, "exports");
       mkdirSync(dir, { recursive: true });
       const base = (inv.number ?? `entwurf-${inv.id.slice(0, 8)}`).replace(/[^A-Za-z0-9._-]/g, "_");
-      const data = buildEInvoiceData(inv);
       const written: string[] = [];
       let validation: { valid: boolean; errors: string[] } | null = null;
 

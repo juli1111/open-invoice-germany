@@ -95,4 +95,28 @@ describe("XRechnung / EN 16931", () => {
     expect(deliveryIdx).toBeGreaterThan(customerIdx);
     expect(deliveryIdx).toBeLessThan(taxTotalIdx);
   });
+
+  it("erzeugt für Storno ein UBL CreditNote-Dokument (381, positive Beträge, BillingReference)", () => {
+    const credit: EInvoiceData = {
+      ...data,
+      number: "GS-2026-0001",
+      type: "CREDIT_NOTE",
+      precedingInvoiceNumber: "RE-2026-0001",
+      precedingInvoiceDate: new Date("2026-06-09"),
+      lines: data.lines.map((l) => ({ ...l, unitNetPriceCents: -l.unitNetPriceCents, lineNetCents: -l.lineNetCents })),
+      taxSubtotals: data.taxSubtotals.map((t) => ({ ...t, netCents: -t.netCents, taxCents: -t.taxCents })),
+      netTotalCents: -data.netTotalCents,
+      taxTotalCents: -data.taxTotalCents,
+      grossTotalCents: -data.grossTotalCents,
+      payableCents: -data.payableCents,
+    };
+    const xml = buildXRechnungUBL(credit);
+    expect(xml).toContain("<CreditNote");
+    expect(xml).toContain("<cbc:CreditNoteTypeCode>381</cbc:CreditNoteTypeCode>");
+    expect(xml).toContain("<cac:CreditNoteLine>");
+    expect(xml).toContain("<cbc:CreditedQuantity");
+    expect(xml).toContain("RE-2026-0001"); // BillingReference auf Original
+    expect(xml).toContain('<cbc:PayableAmount currencyID="EUR">297.50</cbc:PayableAmount>'); // positiv
+    expect(validateXRechnung(credit, xml).errors).toEqual([]);
+  });
 });

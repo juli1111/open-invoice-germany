@@ -70,4 +70,4 @@ Claude ruft im Hintergrund die passenden Tools auf (`setup_company` → `upsert_
 
 ## 5. Grenzen
 
-Siehe [LIMITATIONEN.md](LIMITATIONEN.md) — u. a. keine eingebaute Auth (lokal/Solo betreiben), XRechnung statt ZUGFeRD-Hybrid, Storno-E-Rechnung als Invoice-381. Keine Steuerberatung — [COMPLIANCE.md](../COMPLIANCE.md).
+Siehe [LIMITATIONEN.md](LIMITATIONEN.md) — u. a. keine eingebaute Auth (lokal/Solo betreiben), XRechnung statt ZUGFeRD-Hybrid, authoritative KoSIT-Validierung läuft in der CI. Keine Steuerberatung — [COMPLIANCE.md](../COMPLIANCE.md).
